@@ -96,7 +96,7 @@ vec3 getNormal(vec3 p) {
 }
 
 vec3 calculateLighting(vec3 p, vec3 normal, vec3 viewDir, vec3 lightPos, vec3 lightColor, int matID) {
-    // Material properties 
+    // Material properties
     float ambientStrength = 0.3;
     float diffuseStrength = 0.7;
     float specularStrength = 0.5;
@@ -122,24 +122,22 @@ vec3 calculateLighting(vec3 p, vec3 normal, vec3 viewDir, vec3 lightPos, vec3 li
 // Raymarcher
 vec3 raymarch(vec3 ro, vec3 rd, out int matID) {
     float t = 0.0;
-    vec3 x = ro;
-    vec3 v = rd;
-    float h = 0.1; // fixed step size for RK4
-    
-    for (int i = 0; i < 1000; i++) {
-        // check for collision with the scene
-        
-        float d = sceneSDF(x, matID);
-        if (d < 0.001) return x;
-        
-        rk4(x, v, h);
-        v = normalize(v);
-        t += h;
-        
+
+    for (int i = 0; i < 256; i++) {
+        vec3 p = ro + rd * t;
+        float d = sceneSDF(p, matID);
+
+        if (d < 0.001) {
+            return p; // hit
+        }
+
+        t += d;
+
         if (t > 50.0) break;
     }
+
     matID = -1;
-    return x;
+    return ro + rd * t;
 }
 
 // Main Render
@@ -155,15 +153,14 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 
     mat3 camRot = mat3(camPose);
     vec3 camPos = camPose[3].xyz;
-    vec3 blackHolePost = vec3(0.0);
-    int blackHoleRadius = 1;
+
 
     vec3 ro = camPos;
     vec3 rd = normalize(camRot * normalize(vec3(uv, 1.5)));
 
     int matID;
     vec3 p = raymarch(ro, rd, matID);
-    
+   
     vec3 col;
     if (matID >= 0) {
         vec3 colors[4];
@@ -172,14 +169,14 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         colors[2] = vec3(0.0, 0.6, 0.4);
         colors[3] = vec3(0.0, 0.5, 0.3);
         vec3 baseColor = colors[matID];
-        
+       
         if (matID == 1 || matID == 2 || matID == 3) {
             vec2 texCoords = p.xz * 0.5; // Scale the texture
             vec3 cactusColor = texture(iChannel2, texCoords).rgb;
             baseColor = cactusColor;
         }
-        
-        
+       
+       
         vec3 normal = getNormal(p); // Surface normal
         vec3 viewDir = normalize(ro - p); // Direction from hit point to camera
 
@@ -190,7 +187,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         // Calculate final color with lighting
         vec3 litColor = calculateLighting(p, normal, viewDir, lightPos, lightColor, matID);
         col = baseColor * litColor; // Multiply base color by lighting intensity/color
-        
+       
     } else if (matID == -2) {
         col = vec3(0.0);
     } else {

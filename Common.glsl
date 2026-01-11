@@ -11,6 +11,26 @@ float sdPlane(vec3 p, vec3 n, float h) {
     return dot(p, n) + h;
 }
 
+float sdBox(vec3 p, vec3 b){
+    vec3 q = abs(p) - b;
+    return length(max(q,0.0)) + min(max(q.x, max(q.y,q.z)), 0.0);
+}
+
+float sdRoundBox(vec3 p, vec3 b, float r){
+    vec3 q = abs(p) - b;
+    return length(max(q,0.0)) - r + min(max(q.x, max(q.y,q.z)), 0.0);
+}
+
+float sdTorus(vec3 p, vec2 t){
+    vec2 q = vec2(length(p.xz)-t.x, p.y);
+    return length(q) - t.y;
+}
+
+float sdCappedCylinderY(vec3 p, float h, float r){
+    vec2 d = abs(vec2(length(p.xz), p.y)) - vec2(r, h);
+    return min(max(d.x,d.y), 0.0) + length(max(d,0.0));
+}
+
 struct Hit {
     float t;
     int id;
