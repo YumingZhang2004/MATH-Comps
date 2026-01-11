@@ -1,63 +1,3 @@
-float U_fn(vec3 p);
-vec3 gradU(vec3 p);
-
-const int BH_COUNT = 2;
-const vec3 BH_POS[2] = vec3[2](
-    vec3(1.0, 0.0, 5.0),
-    vec3( 0.5, 0.0, 4.0)
-);
-const float BH_MASS[2] = float[2](0.07, 0.07);
-
-float U_fn(vec3 p) {
-    float U = 1.0;
-    for (int i = 0; i < BH_COUNT; i++) {
-        vec3 d = p - BH_POS[i];
-        float r = length(d);
-        r = max(r, 1e-4);  // avoid division by very small r
-        U += BH_MASS[i] / r;
-    }
-    return U;
-}
-
-vec3 gradU(vec3 p) {
-    vec3 g = vec3(0.0);
-    for (int i = 0; i < BH_COUNT; i++) {
-        vec3 d = p - BH_POS[i];
-        float r2 = max(dot(d,d), 1e-8);
-        float r = sqrt(r2);
-        // gradient of (m / r) = m * (-d / r^3)
-        g += -BH_MASS[i] * d / (r2 * r);
-    }
-    return g;
-}
-
-vec3 accel(vec3 x, vec3 v){
-    float U  = U_fn(x);
-    vec3 gU  = gradU(x);
-    float v2 = dot(v,v);
-    float s  = dot(v,gU);
-    return (2.0/U)*v2*gU - (4.0/U)*s*v;
-}
-
-void rk4(inout vec3 x, inout vec3 v, float h){
-    vec3 k1x = v;
-    vec3 k1v = accel(x, v);
-
-    vec3 k2x = v + 0.5*h*k1v;
-    vec3 k2v = accel(x + 0.5*h*k1x,
-                     v + 0.5*h*k1v);
-
-    vec3 k3x = v + 0.5*h*k2v;
-    vec3 k3v = accel(x + 0.5*h*k2x,
-                     v + 0.5*h*k2v);
-
-    vec3 k4x = v + h*k3v;
-    vec3 k4v = accel(x + h*k3x,
-                     v + h*k3v);
-
-    x += (h/6.0) * (k1x + 2.0*k2x + 2.0*k3x + k4x);
-    v += (h/6.0) * (k1v + 2.0*k2v + 2.0*k3v + k4v);
-}
 
 
 //----------------------------------
@@ -96,7 +36,7 @@ vec3 getNormal(vec3 p) {
 }
 
 vec3 calculateLighting(vec3 p, vec3 normal, vec3 viewDir, vec3 lightPos, vec3 lightColor, int matID) {
-    // Material properties
+    // Material properties 
     float ambientStrength = 0.3;
     float diffuseStrength = 0.7;
     float specularStrength = 0.5;
@@ -160,7 +100,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 
     int matID;
     vec3 p = raymarch(ro, rd, matID);
-   
+    
     vec3 col;
     if (matID >= 0) {
         vec3 colors[4];
@@ -169,14 +109,14 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         colors[2] = vec3(0.0, 0.6, 0.4);
         colors[3] = vec3(0.0, 0.5, 0.3);
         vec3 baseColor = colors[matID];
-       
+        
         if (matID == 1 || matID == 2 || matID == 3) {
             vec2 texCoords = p.xz * 0.5; // Scale the texture
             vec3 cactusColor = texture(iChannel2, texCoords).rgb;
-            baseColor = cactusColor;
+            baseColor = vec3(1.0,0.,0.);
         }
-       
-       
+        
+        
         vec3 normal = getNormal(p); // Surface normal
         vec3 viewDir = normalize(ro - p); // Direction from hit point to camera
 
@@ -187,7 +127,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         // Calculate final color with lighting
         vec3 litColor = calculateLighting(p, normal, viewDir, lightPos, lightColor, matID);
         col = baseColor * litColor; // Multiply base color by lighting intensity/color
-       
+        
     } else if (matID == -2) {
         col = vec3(0.0);
     } else {
