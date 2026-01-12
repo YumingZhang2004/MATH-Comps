@@ -3,20 +3,23 @@ float sceneSDF(vec3 p, out int matID)
 {
     float d = 1e5;
     matID = -1;
-
-    float plane = sdPlane(p, vec3(0.,1.,0.), 1.0);
+    p.xyz = mod( p.xyz+1.0, 2.0 ) - 1.0;  
+    /*float plane = sdPlane(p, vec3(0.,1.,0.), 1.0);
     if (plane < d) { d = plane; matID = 0; }
-
-    float s1 = sdSphere(p - vec3(0., 0., 4.), 1.0);
+    */
+    float s1 = sdSphere(p - vec3(0., 0., 0.), .5);
     if (s1 < d) { d = s1; matID = 1; }
 
     float s2 = sdSphere(p - vec3(2., 0., 6.), 0.7);
     if (s2 < d) { d = s2; matID = 2; }
-
+    /*
     vec3 q = p - vec3(-2., 0., 5.);
     float cyl = sdCylinder(q, vec3(0., 0.5, 1.0));
     if (cyl < d) { d = cyl; matID = 3; }
-
+    
+    */
+    float cyl = sdCappedCylinderY(p - vec3(-4.0, 0.0, 6.0), 5., 1.); 
+    if (cyl < d) {d = cyl; matID = 3; }
     return d;
 }
 
@@ -120,7 +123,7 @@ vec3 raymarch(vec3 ro, vec3 rd, out int matID)
         }
 
         t += d;
-        if(t > 50.0) break;
+        if(t > 500.0) break;
     }
 
     matID = -1;
@@ -159,16 +162,16 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
 
     // Material base color
     vec3 colors[4];
-    colors[0] = vec3(0.9, 0.8, 0.7);
+    colors[0] = vec3(0.9, 0.9, 0.7);
     colors[1] = vec3(0.9, 0.5, 0.4);
-    colors[2] = vec3(0.0, 0.6, 0.4);
+    colors[2] = vec3(0.1, 0.6, 0.4);
     colors[3] = vec3(0.5, 0.5, 0.3);
     vec3 baseColor = colors[matID];
 
     vec3 normal  = getNormal(p);
     vec3 viewDir = normalize(ro - p);
 
-    vec3 lightPos   = vec3(5.0, 10.0, 5.0);
+    vec3 lightPos   = vec3(-10.0, 15.0, 5.0);
     vec3 lightColor = vec3(1.0);
 
     // Soft shadow factor
@@ -178,6 +181,6 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     // Lighting
     vec3 lit = calculateLighting(p, normal, viewDir, lightPos, lightColor, sha);
 
-    vec3 col = baseColor * lit;
+    vec3 col = baseColor * lit * 3.;
     fragColor = vec4(col, 1.0);
 }
