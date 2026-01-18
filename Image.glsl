@@ -1,27 +1,32 @@
 // Scene definition
 float sceneSDF(vec3 p, out int matID)
 {
-    float d = 1e5;
+    float k = 0.7;
     matID = -1;
     p.xz = mod( p.xz + 1.0, 2.0 ) - 1.0;  
-    float height = 0.;
-    float plane = sdPlane(p, vec3(0.,1.,0.), 1.0);
-    if (plane < d) { d = plane; matID = 0; }
+    float heightjump = 2.0 +0.5*sin(10. * iTime);
+    //float plane = sdPlane(p, vec3(0.,1.,0.), 1.0);
+    //if (plane < d) { d = plane; matID = 0; }
+    float d = sdPlane(p, vec3(0.,1.,0.), 1.0);
+    matID = 0;
    
-    float s1 = sdSphere(p - vec3(0., 0., 0.), .7);
-    if (s1 < d) { d = s1; matID = 1; }
-
-    float s2 = sdSphere(p - vec3(2., 0., 6.), 0.7);
-    if (s2 < d) { d = s2; matID = 2; }
-    /*
-    vec3 q = p - vec3(-2., 0., 5.);
-    float cyl = sdCylinder(q, vec3(0., 0.5, 1.0));
-    if (cyl < d) { d = cyl; matID = 3; }
-   
-    */
-    float cyl = sdCappedCylinderY(p - vec3(0., 4.0, 0.0), 6., .3);
-    if (cyl < d) {d = cyl; matID = 3; }
+   //float s1 = sdSphere(p - vec3(0., 0., 0.), .7);
+    //if (s1 < d) { d = s1; matID = 1; }
+    
+    float s1 = sdSphere(p - vec3(0.,heightjump,0.), 0.7);
+    float d1 = smin(d, s1, k);
+    if (d1 != d) matID = 1;
+    d = d1;
+    
+    //float cyl = sdCappedCylinderY(p - vec3(0., 1.0, 0.0), 2., .2);
+    //if (cyl < d) {d = cyl; matID = 3; }
+    //return d;
+    float cyl = sdCappedCylinderY(p - vec3(0., 1.0, 0.0), 2., .2);
+    float d3 = smin(d, cyl, k);
+    if (d3 != d) matID = 3;
+    d = d3;
     return d;
+    
 }
 
 // Wrapper used by soft shadows
@@ -163,7 +168,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
 
     // Material base color
     vec3 colors[4];
-    colors[0] = vec3(0.4, 0.9, 0.7);
+        colors[0] = vec3(.4, 0.0, 0.4);
     colors[1] = vec3(1., 1., 1. );
     colors[2] = vec3(0.1, 0.6, 0.4);
     colors[3] = vec3(0.5, 0.5, 0.3);
