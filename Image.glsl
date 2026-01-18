@@ -4,7 +4,7 @@ float sceneSDF(vec3 p, out int matID)
     float d = 1e5;
     matID = -1;
     vec3 space = vec3(8.0);                 
-    p = mod(p + space, 2.0*space) - space;
+    p.xyz = mod(p.xyz + space, 2.0*space) - space;
 
     /*float height = 0.;
     float plane = sdPlane(p, vec3(0.,1.,0.), 1.0);
@@ -298,3 +298,4 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     vec3 col = baseColor * lit * 3.;
     fragColor = vec4(col, 1.0);
 }
+
