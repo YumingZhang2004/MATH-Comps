@@ -1,16 +1,18 @@
 // SDF primitives
+
 float sdSphere(vec3 p, float s) {
     return length(p) - s;
 }
-
 float sdCylinder(vec3 p, vec3 c) {
     return length(p.xz - c.xy) - c.z;
 }
-
+/*
 float sdPlane(vec3 p, vec3 n, float h) {
     return dot(p, n) + h;
+}*/
+float sdPlane( vec3 p, vec3 n, float h ) {
+  return dot(p,n) + h;
 }
-
 float sdBox(vec3 p, vec3 b){
     vec3 q = abs(p) - b;
     return length(max(q,0.0)) + min(max(q.x, max(q.y,q.z)), 0.0);
@@ -18,7 +20,7 @@ float sdBox(vec3 p, vec3 b){
 
 float sdRoundBox(vec3 p, vec3 b, float r){
     vec3 q = abs(p) - b;
-    return length(max(q,0.0)) - r + min(max(q.x, max(q.y,q.z)), 0.0);
+    return length(max(q,0.0)) - r + min(max(q.x, max(q.y,q.z)), 0.0) ;
 }
 
 float sdTorus(vec3 p, vec2 t){
@@ -35,6 +37,11 @@ struct Hit {
     float t;
     int id;
 };
+float smin( float a, float b, float k )
+{
+    float h = clamp( 0.5 + 0.5*(b - a)/k, 0.0, 1.0 );
+    return mix( b, a, h ) - k*h*(1.0 - h);
+}
 
 const float INF = 1e6;
 
