@@ -1,192 +1,108 @@
-// Scene definition
-float sceneSDF(vec3 p, out int matID)
-{
-    float k = 0.7;
-    matID = -1;
-    p.xz = mod( p.xz + 1.0, 2.0 ) - 1.0;  
-    float heightjump = 2.0 +0.5*sin(10. * iTime);
-    //float plane = sdPlane(p, vec3(0.,1.,0.), 1.0);
-    //if (plane < d) { d = plane; matID = 0; }
-    float d = sdPlane(p, vec3(0.,1.,0.), 1.0);
-    matID = 0;
-   
-   //float s1 = sdSphere(p - vec3(0., 0., 0.), .7);
-    //if (s1 < d) { d = s1; matID = 1; }
-    
-    float s1 = sdSphere(p - vec3(0.,heightjump,0.), 0.7);
-    float d1 = smin(d, s1, k);
-    if (d1 != d) matID = 1;
-    d = d1;
-    
-    //float cyl = sdCappedCylinderY(p - vec3(0., 1.0, 0.0), 2., .2);
-    //if (cyl < d) {d = cyl; matID = 3; }
-    //return d;
-    float cyl = sdCappedCylinderY(p - vec3(0., 1.0, 0.0), 2., .2);
-    float d3 = smin(d, cyl, k);
-    if (d3 != d) matID = 3;
-    d = d3;
-    return d;
-    
+// SDF primitives
+
+float sdSphere(vec3 p, float s) {
+    return length(p) - s;
+}
+float sdCylinder(vec3 p, vec3 c) {
+    return length(p.xz - c.xy) - c.z;
+}
+/*
+float sdPlane(vec3 p, vec3 n, float h) {
+    return dot(p, n) + h;
+}*/
+float sdPlane( vec3 p, vec3 n, float h ) {
+  return dot(p,n) + h;
+}
+float sdBox(vec3 p, vec3 b){
+    vec3 q = abs(p) - b;
+    return length(max(q,0.0)) + min(max(q.x, max(q.y,q.z)), 0.0);
 }
 
-// Wrapper used by soft shadows
-float map(vec3 p)
-{
-    int _;
-    return sceneSDF(p, _);
+float sdRoundBox(vec3 p, vec3 b, float r){
+    vec3 q = abs(p) - b;
+    return length(max(q,0.0)) - r + min(max(q.x, max(q.y,q.z)), 0.0) ;
 }
 
-// Geometry utilities
-vec3 getNormal(vec3 p)
-{
-    vec2 e = vec2(0.001, 0.0);
-    return normalize(vec3(
-        map(p + e.xyy) - map(p - e.xyy),
-        map(p + e.yxy) - map(p - e.yxy),
-        map(p + e.yyx) - map(p - e.yyx)
-    ));
+float sdTorus(vec3 p, vec2 t){
+    vec2 q = vec2(length(p.xz)-t.x, p.y);
+    return length(q) - t.y;
 }
 
-// Soft shadows
-float calcSoftshadow(in vec3 ro, in vec3 rd,
-                     in float mint, in float tmax,
-                     in float w, int technique)
-{
-    float res = 1.0;
-    float t   = mint;
-    float ph  = 1e10;
-
-    for(int i=0; i<32; i++)
-    {
-        float h = map(ro + rd*t);
-
-        // traditional technique
-        if(technique==0)
-        {
-            res = min(res, h/(w*t));
-        }
-        // improved technique
-        else
-        {
-            float y = h*h/(2.0*ph);
-            float d = sqrt(max(h*h - y*y, 0.0));
-            res = min(res, d/(w*max(0.0, t - y)));
-            ph = h;
-        }
-
-        t += h;
-        if(res < 0.0001 || t > tmax) break;
-    }
-
-    res = clamp(res, 0.0, 1.0);
-    return res*res*(3.0 - 2.0*res);
+float sdCappedCylinderY(vec3 p, float h, float r){
+    vec2 d = abs(vec2(length(p.xz), p.y)) - vec2(r, h);
+    return min(max(d.x,d.y), 0.0) + length(max(d,0.0));
 }
 
-// Lighting (Phong + shadow factor)
-vec3 calculateLighting(vec3 p, vec3 normal, vec3 viewDir,
-                       vec3 lightPos, vec3 lightColor,
-                       float sha)
+struct Hit {
+    float t;
+    int id;
+};
+// Smooth minimum (quadratic polynomial smoothing)
+
+float smin( float a, float b, float k )
 {
-    float ambientStrength  = 0.15;
-    float diffuseStrength  = 0.25;
-    float specularStrength = 0.45;
-    float shininess        = 16.0;
-
-    // Ambient
-    vec3 ambient = ambientStrength * lightColor;
-
-    // Diffuse
-    vec3 lightDir = normalize(lightPos - p);
-    float diff = max(dot(normal, lightDir), 0.0);
-    vec3 diffuse = diff * diffuseStrength * lightColor * sha;
-
-    // Specular
-    vec3 reflectDir = reflect(-lightDir, normal);
-    float spec = pow(max(dot(viewDir, reflectDir), 0.0), shininess);
-    vec3 specular = spec * specularStrength * lightColor * sha;
-
-    return ambient + diffuse + specular;
+    k *= 1.3;
+    float h = max( k-abs(a-b), 0.0 )/k;
+    return min(a,b) - h*h*k*(1.0/4.0);
 }
 
-// Raymarcher
-vec3 raymarch(vec3 ro, vec3 rd, out int matID)
-{
-    float t = 0.0;
-    matID = -1;
+const float INF = 1e6;
 
-    for(int i=0; i<256; i++)
-    {
-        vec3 p = ro + rd*t;
-
-        int stepID;
-        float d = sceneSDF(p, stepID);
-
-        // Hit
-        if(d < 0.001)
-        {
-            matID = stepID;
-            return p;
-        }
-
-        t += d;
-        if(t > 500.0) break;
-    }
-
-    matID = -1;
-    return ro + rd*t;
+// Ray-sphere intersection
+float intersectSphere(vec3 ro, vec3 rd, vec3 center, float radius) {
+    vec3 oc = ro - center;
+    float b = dot(oc, rd);
+    float c = dot(oc, oc) - radius * radius;
+    float h = b * b - c;
+    if (h < 0.0) return -1.0;
+    return -b - sqrt(h); // nearest positive t
 }
 
-// Main
-void mainImage(out vec4 fragColor, in vec2 fragCoord)
-{
-    vec2 uv = (fragCoord - 0.5 * iResolution.xy) / iResolution.y;
-
-    // Load camera pose
-    mat4 camPose;
-    camPose[0] = texelFetch(iChannel1, ivec2(0,0), 0);
-    camPose[1] = texelFetch(iChannel1, ivec2(1,0), 0);
-    camPose[2] = texelFetch(iChannel1, ivec2(2,0), 0);
-    camPose[3] = texelFetch(iChannel1, ivec2(3,0), 0);
-
-    mat3 camRot = mat3(camPose);
-    vec3 camPos = camPose[3].xyz;
-
-    vec3 ro = camPos;
-    vec3 rd = normalize(camRot * normalize(vec3(uv, 1.5)));
-
-    // Raymarch
-    int matID;
-    vec3 p = raymarch(ro, rd, matID);
-
-    // Background
-    if(matID < 0)
-    {
-        vec3 sky = vec3(0.6, 0.8, 1.0) * (1.0 - 0.5 * rd.y);
-        fragColor = vec4(sky, 1.0);
-        return;
-    }
-
-    // Material base color
-    vec3 colors[4];
-        colors[0] = vec3(.4, 0.0, 0.4);
-    colors[1] = vec3(1., 1., 1. );
-    colors[2] = vec3(0.1, 0.6, 0.4);
-    colors[3] = vec3(0.5, 0.5, 0.3);
-    vec3 baseColor = colors[matID];
-
-    vec3 normal  = getNormal(p);
-    vec3 viewDir = normalize(ro - p);
-
-    vec3 lightPos   = vec3(-10.0, 15.0, 5.0);
-    vec3 lightColor = vec3(1.0);
-
-    // Soft shadow factor
-    vec3 lightDir = normalize(lightPos - p);
-    float sha = calcSoftshadow(p, lightDir, 0.01, 25.0, 0.12, 1);
-
-    // Lighting
-    vec3 lit = calculateLighting(p, normal, viewDir, lightPos, lightColor, sha);
-
-    vec3 col = baseColor * lit * 3.;
-    fragColor = vec4(col, 1.0);
+// Ray-plane intersection
+float intersectPlane(vec3 ro, vec3 rd, vec3 n, float h) {
+    float denom = dot(rd, n);
+    if (abs(denom) < 1e-6) return -1.0;
+    float t = -(dot(ro, n) + h) / denom;
+    return (t > 0.0) ? t : -1.0;
 }
+
+// Ray-cylinder intersection
+float intersectCylinder(vec3 ro, vec3 rd, vec3 center, float radius) {
+    // y-axis aligned cylinder at center.xz
+    vec2 oc = ro.xz - center.xy;
+    vec2 rd2 = rd.xz;
+    float a = dot(rd2, rd2);
+    float b = dot(oc, rd2);
+    float c = dot(oc, oc) - radius * radius;
+    float h = b*b - a*c;
+    if (h < 0.0) return -1.0;
+    return (-b - sqrt(h)) / a;
+}
+
+const float turn_eps = 0.03;
+const float move_eps = 0.03;
+
+// Rotations
+const mat4 YAW_LEFT = mat4(
+    cos(turn_eps), 0., sin(turn_eps), 0.,
+    0., 1., 0., 0.,
+   -sin(turn_eps), 0., cos(turn_eps), 0.,
+    0., 0., 0., 1.
+);
+const mat4 YAW_RIGHT = transpose(YAW_LEFT);
+
+const mat4 PITCH_UP = mat4(
+    1., 0., 0., 0.,
+    0., cos(turn_eps), -sin(turn_eps), 0.,
+    0., sin(turn_eps),  cos(turn_eps), 0.,
+    0., 0., 0., 1.
+);
+const mat4 PITCH_DOWN = transpose(PITCH_UP);
+
+const mat4 ROLL_CLOCK = mat4(
+     cos(turn_eps),  sin(turn_eps), 0., 0.,
+    -sin(turn_eps),  cos(turn_eps), 0., 0.,
+     0.,              0.,            1., 0.,
+     0.,              0.,            0., 1.
+);
+const mat4 ROLL_COUNTER = transpose(ROLL_CLOCK);
