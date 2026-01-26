@@ -1,51 +1,75 @@
 
 // Scene definition
-float sceneSDF(vec3 p, out int matID)
+float mapp( in vec3 p )
 {
+    const float s = 5.0;
+    const vec3 rep = vec3(3,1,1);
+
+    vec3 id = round(p/s);
+
+    vec3 off = sign(p-s*id);
+
+    float d = 1e20;
+    for( int k=0; k<2; k++)
+    for( int j=0; j<2; j++ )
+    for( int i=0; i<2; i++ )
+    {
+        vec3 rid = id + vec3(i,j,k)*off;
+        rid = clamp(rid,-rep,rep); // limited repetition
+        vec3 r = p - s*rid;
+        
+    float move = sin(5.*iTime);    
+    float s1 = sdSphere(r - vec3(move,0.,0.), 0.7);
+
+    if (s1 < d) { d = s1;}
+    
+
+    }
+
+    return d;
+    }    
+
+
+/*float sceneSDF(vec3 p, out int matID)
+{
+    
+    
+    
     float k = 0.7;
     matID = -1;
-    p.xz = mod( p.xz + 1.0, 2.0 ) - 1.0;  
-    float heightjump = 3.8 + 0.5*sin(5. * iTime);
-    //float plane = sdPlane(p, vec3(0.,1.,0.), 1.0);
-    //if (plane < d) { d = plane; matID = 0; }
-    float d = sdPlane(p, vec3(0.,1.,0.), 1.0);
+    p.xz = mod(p.xz + 1.0, 2.0 ) - 1.0;  
+    float heightjump = 0.2 + 0.2*sin(5. * iTime);
+
+    float d = sdPlane(p, vec3(0.,0.,0.), 1.0);
     matID = 0;
-   
-   //float s1 = sdSphere(p - vec3(0., 0., 0.), .7);
-    //if (s1 < d) { d = s1; matID = 1; }
-    
-    float s1 = sdSphere(p - vec3(0.,heightjump,0.), 0.4);
+
+    float s1 = sdSphere(p - vec3(heightjump,0.,0.), 0.2);
     float d1 = smin(d, s1, k);
     if (d1 != d) matID = 1;
     d = d1;
     
-    //float cyl = sdCappedCylinderY(p - vec3(0., 1.0, 0.0), 2., .2);
-    //if (cyl < d) {d = cyl; matID = 3; }
-    //return d;
-    float cyl = sdCappedCylinderY(p - vec3(0., 1.0, 0.0), 2., .3);
-    float d3 = smin(d, cyl, k);
-    if (d3 != d) matID = 3;
-    d = d3;
+
+
     
     return d;
     
-}
+}*/
 
 // Wrapper used by soft shadows
-float map(vec3 p)
+/*float map(vec3 p)
 {
     int _;
     return sceneSDF(p, _);
-}
+}*/
 
 // Geometry utilities
 vec3 getNormal(vec3 p)
 {
     vec2 e = vec2(0.001, 0.0);
     return normalize(vec3(
-        map(p + e.xyy) - map(p - e.xyy),
-        map(p + e.yxy) - map(p - e.yxy),
-        map(p + e.yyx) - map(p - e.yyx)
+        mapp(p + e.xyy) - mapp(p - e.xyy),
+        mapp(p + e.yxy) - mapp(p - e.yxy),
+        mapp(p + e.yyx) - mapp(p - e.yyx)
     ));
 }
 
@@ -60,10 +84,10 @@ float calcSoftshadow(in vec3 ro, in vec3 rd,
 
     for(int i=0; i<32; i++)
     {
-        float h = map(ro + rd*t);
+        float h = mapp(ro + rd*t);
 
         // traditional technique
-        if(technique==0)
+        if(technique==1)
         {
             res = min(res, h/(w*t));
         }
@@ -121,7 +145,7 @@ vec3 raymarch(vec3 ro, vec3 rd, out int matID)
         vec3 p = ro + rd*t;
 
         int stepID;
-        float d = sceneSDF(p, stepID);
+        float d = mapp(p);
 
         // Hit
         if(d < 0.001)
@@ -170,16 +194,16 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
 
     // Material base color
     vec3 colors[4];
-        colors[0] = vec3(.4, 0.0, 0.4);
-    colors[1] = vec3(1., 1., 1. );
+        colors[0] = vec3(1., 1.0, 1.0);
+    colors[1] = vec3(1.,1.,1.);
     colors[2] = vec3(0.1, 0.6, 0.4);
-    colors[3] = vec3(0.9, 0.5, 0.3);
+    colors[3] = vec3(0.5, 0.5, 0.3);
     vec3 baseColor = colors[matID];
 
     vec3 normal  = getNormal(p);
     vec3 viewDir = normalize(ro - p);
 
-    vec3 lightPos   = vec3(-10.0, 15.0, 5.0);
+    vec3 lightPos   = vec3(.75, .75, .75);
     vec3 lightColor = vec3(1.0);
     
 
@@ -190,6 +214,6 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     // Lighting
     vec3 lit = calculateLighting(p, normal, viewDir, lightPos, lightColor, sha);
 
-    vec3 col = baseColor * lit * 3.;
+    vec3 col = baseColor * lit *3.;
     fragColor = vec4(col, 1.0);
 }
