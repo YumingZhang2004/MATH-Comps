@@ -1,29 +1,26 @@
-#define PI 3.141592653589793238
-
-// Smooth minimum helper
-float smin( float a, float b, float k )
-{
-    // k: smoothing radius (larger = smoother blend)
-    float h = clamp( 0.5 + 0.5*(b - a)/k, 0.0, 1.0 );
-    return mix( b, a, h ) - k*h*(1.0 - h);
-}
+// Choose n of D_{2n}
+const int D_N = 3; 
 
 // Cell-local scene composition
 float cellSDF( in vec3 r, in float ksmooth )
 {
+    // Apply D_{2n} group action by folding into fundamental wedge
+    int dk, dref;
+    vec2 rzFold = Dn_fold(r.xz, D_N, dk, dref);
+    vec3 rf = vec3(rzFold.x, r.y, rzFold.y);
+    
     // Example multi-object cell:
-    // 1) main sphere
-    float dSph = sdSphere(r - vec3(0.0, 0.0, 0.0), 0.7);
+    // main sphere
+    float dSph = sdSphere(rf - vec3(0.0, 0.0, 0.0), 0.7);
 
-    // 2) torus ring (optional-looking "halo" in the cell)
-    float dTor = sdTorus(r - vec3(0.0, 0.0, 0.0), vec2(1.1, 0.25));
+    //  torus ring
+    float dTor = sdTorus(rf - vec3(0.0, 0.0, 0.0), vec2(1.1, 0.25));
 
-    // 3) small box pillar in the cell (gives you a second distinct object)
-    float dBox = sdBox(r - vec3(0.9, 0.0, 0.0), vec3(0.25, 0.25, 0.25));
+    //  small box pillar in the cell
+    float dBox = sdBox(rf - vec3(0.9, 0.0, 0.0), vec3(0.25, 0.25, 0.25));
 
-    // Smooth unions (multi-object)
-    float d = smin(dSph, dTor, ksmooth);
-    d = smin(d, dBox, ksmooth);
+    // Smooth unions
+    float d = smin(dSph, dBox, ksmooth);
 
     return d;
 }
