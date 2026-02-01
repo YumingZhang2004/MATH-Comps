@@ -1,9 +1,50 @@
+// Choose n of D_{2n}
+const int D_N = 2; 
+
+const float M_1_PI = 1.0 / 3.1415926535897932384626433832795;
+const float M_1_2PI = 1.0 / 6.283185307179586476925286766559;
+
+vec2 wrapper(vec3 v_normal)
+{
+    vec3 n_normal = normalize(v_normal);
+    vec2 wrap;
+    wrap.x = - (0.5 - atan(n_normal.z, n_normal.x) * M_1_2PI);
+    wrap.y = (0.5 - asin(-n_normal.y) * M_1_PI);   
+    return wrap;
+}
+
+// Cell-local scene composition
+float cellSDF( in vec3 r, in float ksmooth )
+{
+    // Apply D_{2n} group action by folding into fundamental wedge
+    int dk, dref;
+    vec2 rzFold = Dn_fold(r.xz, D_N, dk, dref);
+    vec3 rf = vec3(rzFold.x, r.y, rzFold.y);
+    
+    // Example multi-object cell:
+    // main sphere
+    float dSph = sdSphere(rf - vec3(0.0, 0.0, 0.0), 0.7);
+
+    //  torus ring
+    float dTor = sdTorus(rf - vec3(0.0, 0.0, 0.0), vec2(1.1, 0.25));
+
+    //  small box pillar in the cell
+    float dBox = sdBox(rf - vec3(0.9, 0.0, 0.0), vec3(0.25, 0.25, 0.25));
+
+    // Smooth unions
+    float d = smin(dSph, dBox, ksmooth);
+
+    return d;
+}
+
 // Scene definition
 float mapp( in vec3 p )
 {
-    //float jump = (4. * sin(.3 * iTime));  
-    float ksmooth = 0.2;
-    const float s = 4.;
+
+    float ksmooth = 0.3;
+  float s = max(600.0 - 200.0 * iTime, 3.0);
+    
+    //const float s = 4.;
 
     const vec3 rep = vec3(1,1,1);
 
@@ -19,44 +60,38 @@ float mapp( in vec3 p )
         vec3 grid = id + vec3(i,j,k)*off;
         grid = clamp(grid,-rep,rep); // limited repetition
         vec3 r = p - s*grid;
+        
+        // Replace single-object min() with multi-object scene
+        float dCell = cellSDF(r, ksmooth);
+        d = min(d, dCell);
+        
+        float xdir = sin(10.*  iTime);    
+        float zdir = -cos(10.* iTime);
+        //float s1 = sdSphere(r - vec3(0.,0.,0.), .4);
+        //float s1 = sdSphere(r - vec3(xdir, -xdir * .2, zdir), .7);
+        //float s1 = sdSphere(p - vec3(0.,heightjump,0.), 0.4);
+        //float d1 = smin(d, s1, k);
 
-       
-    float xdir = sin(1.*  iTime);    
-    float zdir = -cos(1.* iTime);
-    //float s1 = sdSphere(r - vec3(0.,0.,0.), .4);
-    //float s1 = sdSphere(r - vec3(xdir, -xdir * .2, zdir), .7);
-    //float s1 = sdSphere(p - vec3(0.,heightjump,0.), 0.4);
-    //float d1 = smin(d, s1, k);
-   
-    float left = mod(2. * iTime + 0.5 *s, s) - 0.5*s;
-    //float left = iTime;
-    float sphere = sdSphere(r - vec3(xdir,0.,zdir), .7);
-   
-    // create multiple toruses to smoothen the edge
-    float torus0  = sdTorus(r - vec3(0.0, 0.0, left),     vec2(1.4, 0.5));
-    float torus1  = sdTorus(r - vec3(0.0, 0.0, left - s), vec2(1.4, 0.5));
-    float torus2  = sdTorus(r - vec3(0.0, 0.0, left + s), vec2(1.4, 0.5));
-    float torus = min(torus0, min(torus1, torus2));
-    
+        float left = mod(20. * iTime + 0.5 *s, s) - 0.5*s;
+        float sphere = sdSphere(r - vec3(0.,0.,0.), .7);
 
-    
-    float cell = smin(sphere, torus, ksmooth);
-    //d = min(d, sphere);
-    //d = min(d, torus);
-    //d = smin(d, cell, ksmooth);
-    d = min(d, cell);
+        //float torus = sdTorus(r - vec3(0.,0.0,0.), vec2(1.4,.5));
+        //float cell = smin(sphere, torus, ksmooth);
+        d = min(d, sphere);
+        //d = min(d, torus);
+        //d = smin(d, cell, ksmooth);
 
     }
-   
+    
     return d;
 }    
 
 
 /*float sceneSDF(vec3 p, out int matID)
 {
-   
-   
-   
+    
+    
+    
     float k = 0.7;
     matID = -1;
     p.xz = mod(p.xz + 1.0, 2.0 ) - 1.0;  
@@ -69,12 +104,12 @@ float mapp( in vec3 p )
     float d1 = smin(d, s1, k);
     if (d1 != d) matID = 1;
     d = d1;
-   
+    
 
 
-   
+    
     return d;
-   
+    
 }*/
 
 // Wrapper used by soft shadows
@@ -87,7 +122,7 @@ float mapp( in vec3 p )
 // Geometry utilities
 vec3 getNormal(vec3 p)
 {
-    vec2 e = vec2(0.002, 0.0);
+    vec2 e = vec2(0.001, 0.0);
     return normalize(vec3(
         mapp(p + e.xyy) - mapp(p - e.xyy),
         mapp(p + e.yxy) - mapp(p - e.yxy),
@@ -172,12 +207,13 @@ vec3 raymarch(vec3 ro, vec3 rd, out int matID)
     {
         vec3 p = (ro + rd*t);
 
-        int stepID;
+        // int stepID;
         float d = mapp(p);
 
         // Hit
         if(d < 0.001)
         {
+            // matID = stepID;
             matID = 0;
             return p;
         }
@@ -203,7 +239,7 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord)
     camPose[3] = texelFetch(iChannel1, ivec2(3,0), 0);
 
     mat3 camRot = mat3(camPose);
-    vec3 camPos = camPose[3].xyz + 1.;
+    vec3 camPos = camPose[3].xyz - vec3(0.,0.0,-.75);
 
     vec3 ro = camPos;
     vec3 rd = normalize(camRot * normalize(vec3(uv, 1.5)));
@@ -235,8 +271,11 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord)
     //vec3 lightPos   = vec3(0., 1., 0.);
     vec3 lightPos = ro - vec3(0.0, 0.5, 0.0);
     vec3 lightColor = vec3(1.0);
-   
+    
+    vec2 wrap = wrapper(normal);
+    vec3 texCol = texture(iChannel2, wrap).xyz;
 
+    baseColor = texCol;  
     // Soft shadow factor
     vec3 lightDir = normalize(lightPos - p);
     float dist = length(p - lightPos);
@@ -248,5 +287,5 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord)
 
     vec3 col = baseColor * lit * fade;
     fragColor = vec4(col, 1.0);
-}
+
 
