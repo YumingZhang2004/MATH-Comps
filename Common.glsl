@@ -1,3 +1,5 @@
+#define PI 3.14159265358979323846
+
 // SDF primitives
 float sdSphere(vec3 p, float s) {
     return length(p) - s;
@@ -69,8 +71,8 @@ float intersectCylinder(vec3 ro, vec3 rd, vec3 center, float radius) {
     return (-b - sqrt(h)) / a;
 }
 
-const float turn_eps = 0.03;
-const float move_eps = 0.03;
+const float turn_eps = 0.01;
+const float move_eps = 0.01;
 
 // Rotations
 const mat4 YAW_LEFT = mat4(
@@ -96,3 +98,65 @@ const mat4 ROLL_CLOCK = mat4(
      0.,              0.,            0., 1.
 );
 const mat4 ROLL_COUNTER = transpose(ROLL_CLOCK);
+
+// Smooth minimum helper
+float smin(float a, float b, float k)
+{
+    // k: smoothing radius (larger = smoother blend)
+    float h = clamp(0.5 + 0.5*(b - a)/k, 0.0, 1.0);
+    return mix(b, a, h) - k*h*(1.0 - h);
+}
+
+// Dihedral group action on R^2 utilities
+
+// 2D rotation matrix
+mat2 rot2(float a){
+    float c = cos(a), s = sin(a);
+    return mat2(c,-s, s, c);
+}
+
+// Reflection across x-axis: (x,y)->(x,-y)
+vec2 reflectX(vec2 p){
+    return vec2(p.x, -p.y);
+}
+
+// Apply r^k
+vec2 Dn_apply_rot(vec2 p, int n, int k){
+    float ang = (2.0*PI/float(n)) * float(k);
+    return rot2(ang) * p;
+}
+
+// Apply s r^k
+vec2 Dn_apply_ref(vec2 p, int n, int k){
+    float ang = (2.0*PI/float(n)) * float(k);
+    return reflectX(rot2(ang) * p);
+}
+
+// Unified apply: refl=0 => r^k ; refl=1 => s r^k
+vec2 Dn_apply(vec2 p, int n, int k, int refl){
+    return (refl==0) ? Dn_apply_rot(p,n,k) : Dn_apply_ref(p,n,k);
+}
+
+// Fold into wedge theta in [0, PI/n]
+vec2 Dn_fold(vec2 p, int n, out int k, out int reflFlag)
+{
+    reflFlag = 0;
+    if (p.y < 0.0) { p.y = -p.y; reflFlag = 1; }
+
+    float theta = atan(p.y, p.x);
+    theta = max(theta, 0.0);
+
+    float sector = (2.0*PI)/float(n);
+    k = int(floor(theta / sector));
+    float thetaLocal = theta - float(k)*sector;
+
+    float halfSector = 0.5 * sector;
+    if (thetaLocal > halfSector) {
+        thetaLocal = sector - thetaLocal;
+        reflFlag ^= 1;
+    }
+
+    float r = length(p);
+    // Outputs coarse sector k and reflection parity reflFlag
+    return r * vec2(cos(thetaLocal), sin(thetaLocal));
+}
