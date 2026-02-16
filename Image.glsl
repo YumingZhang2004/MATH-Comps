@@ -1,12 +1,13 @@
 #define PI 3.141592653589793238
 // Scene definition
-float mapp( in vec3 p )
+float mapp( in vec3 p, out int matID)
 {
 
     float ksmooth = 0.3;
-  //float s = max(600.0 - 200.0 * iTime, 1.);
+    float s = max(600.0 - 200.0 * iTime, 3.0);
+    //matID = -1;
     
-    const float s = 3.;
+    //const float s = 4.;
 
     const vec3 rep = vec3(1,1,1);
 
@@ -20,6 +21,10 @@ float mapp( in vec3 p )
     for( int i=0; i<2; i++ )
     {
         vec3 grid = id + vec3(i,j,k)*off;
+        float parity = mod(grid.x + grid.y + grid.z, 2.0);
+
+float radius = (parity < 1.0) ? 0.2 : 0.75;
+
         //grid = clamp(grid,-rep,rep); // limited repetition
         vec3 r = p - s*grid;
 
@@ -32,14 +37,24 @@ float mapp( in vec3 p )
     //float d1 = smin(d, s1, k);
     
     float left = mod(20. * iTime + 0.5 *s, s) - 0.5*s;
-    float sphere = sdSphere(r - vec3(1.5,1.5,1.5), .6);
-
-    //float torus = sdTorus(r - vec3(1.,1.0,1.), vec2(1.4,.5));
-    float frame = sdBoxFrame(r - vec3(3.), vec3(3.0), .07);
+    float sphere = sdSphere(r - vec3(0.,0.,0.), .8);
     
-
-    float cell = min(sphere, frame);
-    d = min(d, cell);
+    float torus = sdTorus(r - vec3(1.,0.0,0.), vec2(1.2,.1));
+    
+    if (sphere < d){
+        d = sphere;
+        matID = 0;
+    }
+    if (torus < d){
+        d = torus;
+        matID = 1;
+    }
+    
+    
+    
+    
+    //float cell = smin(sphere, torus, ksmooth);
+    //d = min(d, sphere);
     //d = min(d, torus);
     //d = smin(d, cell, ksmooth);
 
@@ -85,10 +100,11 @@ float mapp( in vec3 p )
 vec3 getNormal(vec3 p)
 {
     vec2 e = vec2(0.001, 0.0);
+    int _;
     return normalize(vec3(
-        mapp(p + e.xyy) - mapp(p - e.xyy),
-        mapp(p + e.yxy) - mapp(p - e.yxy),
-        mapp(p + e.yyx) - mapp(p - e.yyx)
+        mapp(p + e.xyy, _) - mapp(p - e.xyy, _),
+        mapp(p + e.yxy, _) - mapp(p - e.yxy, _),
+        mapp(p + e.yyx, _) - mapp(p - e.yyx, _)
     ));
 }
 
@@ -123,7 +139,8 @@ float softshadow( in vec3 ro, in vec3 rd, float mint, float maxt, float k )
     float t = mint;
     for( int i=0; i<256 && t<maxt; i++ )
     {
-        float h = mapp(ro + rd*t);
+        int _;
+        float h = mapp(ro + rd*t, _);
         if( h<0.001 )
             return 0.0;
         res = min( res, k*h/t );
@@ -170,7 +187,7 @@ vec3 raymarch(vec3 ro, vec3 rd, out int matID)
         vec3 p = (ro + rd*t);
 
         int stepID;
-        float d = mapp(p);
+        float d = mapp(p, stepID);
 
         // Hit
         if(d < 0.001)
@@ -220,9 +237,9 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord)
 
     // Material base color
     vec3 colors[4];
-    colors[0] = vec3(.2, .4, .7);
-    colors[1] = vec3(1.,1.,1.);
-    colors[2] = vec3(.5);
+    colors[0] = vec3(.4, .1, .9);
+    colors[1] = vec3(0.1, 0.2, 0.6);
+    colors[2] = vec3(0.1, 0.6, 0.4);
     colors[3] = vec3(0.5, 0.5, 0.3);
     vec3 baseColor = colors[matID];
 
