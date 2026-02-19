@@ -58,11 +58,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
 
         camera_pose[3].xyz += localMove;
         
-        // Height constraint
-        float minHeight = -0.8;
-        if (camera_pose[3].y < minHeight) {
-            camera_pose[3].y = minHeight;
-        }
+
 
         // Output updated camera pose
         if (coord.x == 0) fragColor = camera_pose[0];
